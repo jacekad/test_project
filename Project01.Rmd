@@ -73,7 +73,7 @@ dim(training)
 ```
 
 ##### **Eliminate highly corelated variables**
-(this step could be enhancement by creation of PCA variables)
+(this step could be enhanced by creation of PCA variables, we will try to do it in case of not satisied accuracy of our predictions)
 ```{r  warning=FALSE}
 #calculate corelation factor (skip character variables - offset 6)
 correlationMatrix <- cor(training[,6:58])
@@ -90,9 +90,9 @@ validation <- validation[, -highCorIdx]
 dim(training)
 ```
 
-**Number of predictors was reduced drastically from initial 159 left only 38 predictors **
+**Number of predictors was reduced drastically from initial 159 left only 38 predictors - Let's try to build models with limited number of predictors**
 
-##### **Eliminate six first variables**
+##### **Eliminate first six variables**
 (although further analysis can consider those variables as well - we can try to create new vaiables e.g. measurment of the excercise (breake) duration )
 ```{r  warning=FALSE}
 #skip fields; X user_name, raw_timestamp_part_1, raw_timestamp_part_2,   cvtd_timestamp
@@ -113,7 +113,7 @@ head(training)
 
 ### **Modeling** 
 
-#### **Decision Tree** 
+#### **Decision Tree alghoritm** 
 
 ##### **prepare model** 
 ```{r  warning=FALSE}
@@ -133,7 +133,7 @@ confMtx1_testing <- confusionMatrix(testing$classe,predict(modFit1,testing))
 confMtx1_testing$overall
 ```
 
-##### **calculate variable ** 
+##### **calculate  and compare variable importance ** 
 ```{r  warning=FALSE}
 importance1 <- varImp(modFit1, scale=FALSE)
 # summarize importance
@@ -143,7 +143,7 @@ plot(importance1)
 ```
 
 
-#### **Random Forest** 
+#### **Random Forest alghoritm** 
 
 ##### **prepare model** 
 ```{r  warning=FALSE}
@@ -163,7 +163,7 @@ confMtx2_testing <- confusionMatrix(testing$classe,predict(modFit2,testing))
 confMtx2_testing$overall
 ```
 
-##### **calculate variable ** 
+##### **calculate  and compare variable importance ** 
 ```{r  warning=FALSE}
 importance2 <- varImp(modFit2, scale=FALSE)
 # summarize importance
@@ -173,7 +173,7 @@ plot(importance2)
 ```
 
 
-#### **Gradient Boositng** 
+#### **Gradient Boositng alghoritm** 
 
 ##### **prepare model** 
 ```{r  warning=FALSE}
@@ -193,7 +193,7 @@ confMtx3_testing <- confusionMatrix(testing$classe,predict(modFit3,testing))
 confMtx2_testing$overall
 ```
 
-##### **calculate variable ** 
+##### **calculate  and compare variable importance ** 
 ```{r  warning=FALSE}
 importance3 <- varImp(modFit3, scale=FALSE)
 #summarize importance
@@ -204,7 +204,7 @@ plot(importance3)
 
 
 
-### **Prediction of target variable on the testing set** 
+### **Prediction of target variable on the validation dataset** 
 
 #### **Decision Tree** 
 ```{r  warning=FALSE}
@@ -220,6 +220,11 @@ predict(modFit2,validation)
 ```{r  warning=FALSE}
 predict(modFit3,validation)
 ```
+
+
+### **Summary** 
+
+Statistical model prediction accuracy achived on our test dataset are very good - esspecially for Random Forest and Gradient Boosting we have achived very high accuracty >99%. Prediction of target variable value on our validation dataset (20 new records) was faultless. Variable importantance graphs shows that importance of some variables differs a bit depending on the alghoritm.
 
 
 
