@@ -1,0 +1,230 @@
+---
+title: "Discover fitnes training habits"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Scope
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The goal of this project is to predict the manner in which people do exercises. In our analysis we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+The "classe" variable is our target variable (available in the training set). We have arround 160 diffrent predictors.  
+
+
+### **Data preparation** 
+
+#### **Read input data** 
+
+```{r  warning=FALSE}
+library(kernlab)
+library(ggplot2)
+library(caret)
+library(mlbench)
+library(gbm)
+
+set.seed(1000)
+tr_tst_ds = read.csv("C:\\DataScience\\courserra\\pml-training.csv")
+
+```
+
+#### **Prepare training, testing and validation dataset**
+```{r  warning=FALSE}
+inTrain = createDataPartition(tr_tst_ds$classe, p = 3/4)[[1]]
+trainingRaw = tr_tst_ds[ inTrain,]
+testingRaw = tr_tst_ds[-inTrain,]
+validationRaw = read.csv("C:\\DataScience\\courserra\\pml-testing.csv")
+dim(trainingRaw)
+dim(testingRaw)
+dim(validationRaw)
+```
+
+#### **Input data feature elimination**
+
+##### **Eliminate variables with high number of NA values (variables containing more then 90% NA values)**
+
+```{r  warning=FALSE}
+# get indices of data.frame columns with high number of NA values 
+naVar <- (apply(trainingRaw,2, function(x) sum(is.na(x)) )/dim(trainingRaw)[1])*100 > 90
+naIdx <- which(naVar)
+training    <-  trainingRaw[, -naIdx]
+testing  <-  testingRaw[, -naIdx]
+validation <- validationRaw[, -naIdx]
+dim(training)
+dim(testing)
+dim(validation)
+```
+
+##### **Eliminate variables with low variance**
+```{r  warning=FALSE}
+# get indices of data.frame columns (pixels) with low variance
+nzv <- nearZeroVar(training,saveMetrics = TRUE)
+nzvIdx <- nearZeroVar(training)
+print(paste("Fraction of nearZeroVar columns:", round(length(nzvIdx)/length(training),4)))
+# cleanup column list
+training    <-  training[, -nzvIdx]
+testing  <-  testing[, -nzvIdx]
+validation <- validation[, -nzvIdx]
+dim(training)
+```
+
+##### **Eliminate highly corelated variables**
+(this step could be enhancement by creation of PCA variables)
+```{r  warning=FALSE}
+#calculate corelation factor (skip character variables - offset 6)
+correlationMatrix <- cor(training[,6:58])
+# summarize the correlation matrix
+wq <- print(correlationMatrix)
+# find attributes that are highly corrected (ideally >0.75), offset 5 added due to offest in the corelation matrix 
+highCorIdx <- findCorrelation(correlationMatrix, cutoff=0.75) + 5
+# print indexes of highly correlated attributes (candidates to eliminate)
+print(highCorIdx)
+# cleanup column list
+training    <-  training[, -highCorIdx]
+testing  <-  testing[, -highCorIdx]
+validation <- validation[, -highCorIdx]
+dim(training)
+```
+
+**Number of predictors was reduced drastically from initial 159 left only 38 predictors **
+
+##### **Eliminate six first variables**
+(although further analysis can consider those variables as well - we can try to create new vaiables e.g. measurment of the excercise (breake) duration )
+```{r  warning=FALSE}
+#skip fields; X user_name, raw_timestamp_part_1, raw_timestamp_part_2,   cvtd_timestamp
+skipIdx <- c(1,2,3,4,5)
+# cleanup column list
+training    <-  training[, -skipIdx]
+testing  <-  testing[, -skipIdx]
+validation <- validation[, -skipIdx]
+training$classe <- as.factor(training$classe)
+dim(training)
+```
+
+##### **Show sample of the final dataset**
+```{r  warning=FALSE}
+head(training)
+```
+
+
+### **Modeling** 
+
+#### **Decision Tree** 
+
+##### **prepare model** 
+```{r  warning=FALSE}
+#prepare model
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+modFit1 <- train(classe ~.,method="rpart",data=training, trControl=control)
+```
+
+##### **prepare cunfusion matrix for training set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx1_training <- confusionMatrix(training$classe,predict(modFit1,training))
+confMtx1_training$overall
+```
+##### **prepare cunfusion matrix for testing set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx1_testing <- confusionMatrix(testing$classe,predict(modFit1,testing))
+confMtx1_testing$overall
+```
+
+##### **calculate variable ** 
+```{r  warning=FALSE}
+importance1 <- varImp(modFit1, scale=FALSE)
+# summarize importance
+print(importance1)
+# plot importance
+plot(importance1)
+```
+
+
+#### **Random Forest** 
+
+##### **prepare model** 
+```{r  warning=FALSE}
+#prepare model
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+modFit2 <- train(classe~.,data=training,method="rf",verbose=FALSE, trControl=control)
+```
+
+##### **prepare cunfusion matrix for training set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx2_training <- confusionMatrix(training$classe,predict(modFit2,training))
+confMtx2_training$overall
+```
+##### **prepare cunfusion matrix for testing set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx2_testing <- confusionMatrix(testing$classe,predict(modFit2,testing))
+confMtx2_testing$overall
+```
+
+##### **calculate variable ** 
+```{r  warning=FALSE}
+importance2 <- varImp(modFit2, scale=FALSE)
+# summarize importance
+print(importance2)
+# plot importance
+plot(importance2)
+```
+
+
+#### **Gradient Boositng** 
+
+##### **prepare model** 
+```{r  warning=FALSE}
+#prepare model
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+modFit3 <- train(classe ~.,data=training,method="gbm",verbose=FALSE, trControl=control)
+```
+
+##### **prepare cunfusion matrix for training set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx3_training <- confusionMatrix(training$classe,predict(modFit3,training))
+confMtx2_training$overall
+```
+##### **prepare cunfusion matrix for testing set, calculate accuracy** 
+```{r  warning=FALSE}
+confMtx3_testing <- confusionMatrix(testing$classe,predict(modFit3,testing))
+confMtx2_testing$overall
+```
+
+##### **calculate variable ** 
+```{r  warning=FALSE}
+importance3 <- varImp(modFit3, scale=FALSE)
+#summarize importance
+print(importance3)
+# plot importance
+plot(importance3)
+```
+
+
+
+### **Prediction of target variable on the testing set** 
+
+#### **Decision Tree** 
+```{r  warning=FALSE}
+predict(modFit1,validation)
+```
+
+#### **Random Forest** 
+```{r  warning=FALSE}
+predict(modFit2,validation)
+```
+
+####s **Gradient Boositng** 
+```{r  warning=FALSE}
+predict(modFit3,validation)
+```
+
+
+
+
+
+
+
+
